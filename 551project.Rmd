@@ -1,0 +1,255 @@
+---
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+library(rstan)
+library(knitr)
+library(gridExtra)
+library(tidyverse)
+library(bayesplot)
+SEED <- 551
+```
+
+# 2 Dataset
+
+```{r, echo=TRUE}
+# read the data
+Highway_data <- read.csv("Metro_Interstate_Traffic_Volume.csv", 
+                         header = T)
+head(Highway_data)
+
+```
+
+```{r, echo=TRUE}
+# check dimension of the data
+dim(Highway_data)
+```
+
+```{r, echo=TRUE}
+# number of missing values in each column
+kable(tibble("column" = colnames(Highway_data),
+            "# of missing values" = 
+              c(sum(is.na(Highway_data$holiday)),
+               sum(is.na(Highway_data$temp)),
+               sum(is.na(Highway_data$rain_1h)),
+               sum(is.na(Highway_data$snow_1h)),
+               sum(is.na(Highway_data$clouds_all)),
+               sum(is.na(Highway_data$weather_main)),
+               sum(is.na(Highway_data$weather_description)),
+               sum(is.na(Highway_data$date_time)),
+               sum(is.na(Highway_data$traffic_volume)))))
+```
+
+```{r, echo=TRUE}
+# An overview of each column of data 
+summary(Highway_data)
+
+```
+
+```{r, echo=TRUE}
+# Remove observations with abnormal temperature and hourly rain amount
+highway_traffic <- Highway_data[Highway_data$temp > 0 & Highway_data$rain_1h < 200, ]
+
+```
+
+```{r, echo=TRUE}
+# a few visualizations
+# Visualize response variable traffic volume 
+ggplot(highway_traffic) +
+  geom_histogram(aes(x = traffic_volume), 
+                 bins = 30, fill = "skyblue", color = "black", alpha = 0.5) +
+  labs(title = "Histogram of traffic volume", 
+       x = "Hourly traffic volume", y = "Frequency") 
+
+```
+
+```{r, echo=TRUE}
+# boxplot of traffic volume against holiday 
+b1 <- ggplot(data = highway_traffic[highway_traffic$holiday != "None", ]) +
+  geom_boxplot(aes(x = holiday, y = traffic_volume)) +
+  labs(x = "holiday", y = "hourly traffic volume") +
+  ggtitle("Boxplot for hourly traffic volume against holiday") +
+  coord_flip() 
+b1
+```
+  
+```{r, echo=TRUE}
+# boxplot of traffic volume against general weather type
+b2 <- ggplot(data = highway_traffic) +
+  geom_boxplot(aes(x = weather_main, y = traffic_volume)) +
+  labs(x = "general weather type", y = "hourly traffic volume") +
+  ggtitle("Boxplot for Hourly Traffic Volume against General Weather Type") +
+  coord_flip()
+b2
+
+```
+
+# 3 Methods
+
+## 3.1 Ordinary Bayesian Inference
+
+```{r, echo=TRUE}
+# R Stan file for the model
+poisson_stan <- "Poisson.stan"
+writeLines(readLines(poisson_stan))
+```
+
+```{r, echo=TRUE, results='hide'}
+# fit the model with Stan
+fit_poisson <- stan(file = poisson_stan, 
+                   data = list(N = nrow(highway_traffic), 
+                               y = highway_traffic$traffic_volume), 
+                 seed = SEED, chains = 4, iter = 7000)
+
+```
+
+```{r, echo=TRUE}
+lambda_stan <- as.data.frame(fit_poisson, par = "lambda")
+lambda_stan$iter <- seq(1, nrow(lambda_stan), 1)
+
+# monitor convergence by trace plot
+mcmc_trace(fit_poisson, par = c("lambda")) +
+  labs(x = "iteration", title = bquote("Trace Plot for " * lambda))
+
+```
+
+```{r, echo=TRUE}
+# check effect size
+summary(fit_poisson)$summary[, "n_eff"]
+
+```
+
+```{r, echo=TRUE}
+# Posterior predictive check 
+ggplot(lambda_stan) +
+  geom_histogram(aes(x = lambda),  bins = 30, fill = "skyblue", color = "black", alpha = 0.5) +
+  labs(x=expression(lambda), y = "Frequency") + 
+  ggtitle(bquote("Posterior samples of " * lambda)) + 
+  geom_vline(xintercept = mean(highway_traffic$traffic_volume), linewidth = 1.5)
+
+```
+
+```{r, echo=TRUE}
+# runtime check 
+ordinary_runtime <- get_elapsed_time(fit_poisson)
+rbind(ordinary_runtime, colSums(ordinary_runtime))
+```
+
+## 3.2 Hierarchical Bayesian Inference
+
+```{r, echo=TRUE}
+# Create a new column with the index for each level in weather_main
+highway_traffic$index <- as.numeric(factor(highway_traffic$weather_main, 
+                                           levels = unique(highway_traffic$weather_main)))
+
+# view the weather description and corresponding index
+kable(data.frame(weather = unique(highway_traffic$weather_main), 
+                 index = seq(1, length(unique(highway_traffic$weather_main)), 1)))
+```
+
+```{r, echo=TRUE}
+# Implementing hierarchical model via Stan
+hier <- "Hier_fit.stan"
+writeLines(readLines(hier))
+
+```
+
+```{r, echo=TRUE, results='hide'}
+# fit the hierarchical model with Stan
+fit_hier <- stan(file = hier, 
+       data = list(N = nrow(highway_traffic), 
+       J = length(levels(factor(highway_traffic$weather_main))), 
+       weather_type = highway_traffic$index, 
+       volume = highway_traffic$traffic_volume), 
+       seed = SEED, chains = 4, iter = 1000, control = list(max_treedepth = 15))
+
+```
+
+```{r, echo=TRUE}
+# extract posterior samples
+params <- c("lambda0", "lambda[1]", "lambda[2]", "lambda[3]", "lambda[4]", "lambda[5]", "lambda[6]", 
+           "lambda[7]", "lambda[8]", "lambda[9]", "lambda[10]", "lambda[11]")
+lambda_hier <- as.data.frame(fit_hier, par = params)
+lambda_hier$iter <- seq(1, nrow(lambda_hier), 1)
+
+```
+
+```{r, echo=TRUE, fig.height=8}
+# monitor joint convergence 
+mcmc_trace(fit_hier, par = params, facet_args = list(nrow = 4, ncol = 3)) +
+  labs(title = bquote("Joint Trace Plot for " * lambda[i]), x = "iteration")
+
+```
+
+```{r, echo=TRUE}
+# check effect size
+summary(fit_hier)$summary[, "n_eff"]
+
+```
+
+```{r, echo=TRUE}
+# runtime check 
+hier_runtime <- get_elapsed_time(fit_hier)
+rbind(hier_runtime, colSums(hier_runtime))
+```
+
+```{r, echo=TRUE}
+# Posterior predictive check under different weather type on ordinary model
+plot_dat_lambda <- data.frame(volume = rep(lambda_stan$lambda, 11),
+                       group = rep(seq(1, 11, 1), each = length(lambda_stan$lambda)))
+
+
+test <- highway_traffic %>%
+  group_by(weather_main) %>%
+  summarize(
+    vertical_line = mean(traffic_volume))
+
+vline <- test[c(2, 1, 7, 3, 6, 5, 4, 11, 9, 10, 8), ]
+
+# posterior predictive for one parameter model
+suppressWarnings(ggplot(plot_dat_lambda) +
+  # Histogram
+  geom_histogram(
+    aes(x = volume), bins = 30, fill = "pink", color = "black", alpha = 0.5) +
+  geom_vline(data = vline, aes(xintercept = vertical_line), 
+             size = 1, linetype = "dotdash") +
+  facet_wrap(~ weather_main, scales = "free_x") +
+  labs(title = 
+         "Ordinary Bayesian Model Posterior Predictive under Various Weather", 
+      x = expression(lambda), y = "Frequency") +
+  scale_x_continuous(limits = c(2000, 3650))) 
+
+```
+
+```{r, echo=TRUE}
+# Posterior predictive check under different weather type on hierarchical model
+plot_dat_hier <- data.frame(volume = c(lambda_hier$`lambda[1]`,
+                                     lambda_hier$`lambda[2]`, 
+                                     lambda_hier$`lambda[3]`, 
+                                     lambda_hier$`lambda[4]`, 
+                                     lambda_hier$`lambda[5]`,
+                                     lambda_hier$`lambda[6]`,
+                                     lambda_hier$`lambda[7]`,
+                                     lambda_hier$`lambda[8]`,
+                                     lambda_hier$`lambda[9]`,
+                                     lambda_hier$`lambda[10]`,
+                                     lambda_hier$`lambda[11]`),
+                       group = rep(seq(1, 11, 1), 
+                                   each = length(lambda_hier$`lambda[1]`)))
+
+# posterior predictive for hierarchical model
+ggplot(plot_dat_hier) +
+  # Histogram
+  geom_histogram(
+    aes(x = volume), bins = 30, fill = "green", color = "black", alpha = 0.5) +
+  geom_vline(data = vline, aes(xintercept = vertical_line), size = 1, linetype = "dotdash") +
+  facet_wrap(~ weather_main, scales = "free_x") +
+  labs(title = "Hierarchical Model Posterior Predictive under Various Weather",
+       x = expression(lambda), y = "Frequency") 
+
+
+```
+
