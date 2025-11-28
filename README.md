@@ -79,8 +79,8 @@ volume[n] ~ Poisson(λ[weather_type[n]])
 
 | Model | Convergence | Efficiency | Predictive Performance |
 |-------|------------|-----------|----------------------|
-| **Ordinary Bayesian** | ✅ Excellent | ⚡ Fast (~149s total) | Good for overall mean |
-| **Hierarchical Bayesian** | ✅ Good | ⏱️ Moderate (~961s total) | Excellent for weather-specific predictions |
+| **Ordinary Bayesian** | Excellent | Fast (~149s total) | Good for overall mean |
+| **Hierarchical Bayesian** | Good | Moderate (~961s total) | Excellent for weather-specific predictions |
 
 ### Key Findings
 
@@ -95,7 +95,7 @@ volume[n] ~ Poisson(λ[weather_type[n]])
 - **Ordinary Model**: Captures true overall mean but misses weather-specific variations
 - **Hierarchical Model**: Successfully captures true means for 11/11 weather categories
 
-## 🛠️ Installation & Requirements
+## Installation & Requirements
 
 ### Prerequisites
 
@@ -121,7 +121,7 @@ The project requires two Stan model files:
 1. `Poisson.stan` - Ordinary Bayesian model
 2. `Hier_fit.stan` - Hierarchical Bayesian model
 
-## 🚀 Usage
+## Usage
 
 ### 1. Clone the Repository
 
@@ -151,7 +151,7 @@ knitr::purl("551project.Rmd", output = "analysis.R")
 source("analysis.R")
 ```
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 bayesian-traffic-volume/
@@ -164,7 +164,7 @@ bayesian-traffic-volume/
 └── outputs/                    # Model outputs and diagnostics
 ```
 
-## 📊 Visualizations
+## Visualizations
 
 The project generates several key visualizations:
 
@@ -183,7 +183,7 @@ The project generates several key visualizations:
    - Weather-stratified posterior distributions
    - Model comparison plots
 
-## 🔍 Key Insights
+## Key Insights
 
 ### Traffic Volume Patterns
 
@@ -195,10 +195,10 @@ The project generates several key visualizations:
 ### Model Selection Recommendations
 
 - **Overall prediction**: Use ordinary Bayesian model (faster, sufficient for aggregate statistics)
-- **Weather-specific prediction**: Use hierarchical model (captures group-level variation)
+- **Weather-specific prediction**: Use a hierarchical model (captures group-level variation)
 - **Operational planning**: Hierarchical model preferred for practical applications
 
-## 📝 Future Work
+## Future Work
 
 1. **Temporal Dynamics**: Incorporate time series structure using time variables
 2. **Prior Elicitation**: Develop informative priors based on domain expertise
@@ -210,33 +210,29 @@ The project generates several key visualizations:
    - Add interaction terms (weather × holiday)
    - Explore non-Poisson likelihoods (e.g., Negative Binomial)
 
-## 🎯 Limitations
+## Limitations
 
 1. **Temporal Independence**: Current models assume observations are i.i.d., ignoring temporal autocorrelation
 2. **Prior Specification**: Uses weakly informative priors due to limited prior knowledge
 3. **Computational Cost**: Hierarchical model requires significant computation time
 4. **Model Comparison**: Lacks formal model selection criteria (e.g., WAIC, LOO-CV)
 
-## 📚 References
+## References
 
 - Avila, A.M., & Mezić, I. (2020). Data-driven analysis and forecasting of highway traffic dynamics. *Nature Communications*, 11, 2090. [https://doi.org/10.1038/s41467-020-15582-5](https://doi.org/10.1038/s41467-020-15582-5)
 
 - Kong, F., Li, J., Jiang, B., Zhang, T., & Song, H. (2019). Big data-driven machine learning-enabled traffic flow prediction. *Transactions on Emerging Telecommunications Technologies*, 30(9), e3482. [https://doi.org/10.1002/ett.3482](https://doi.org/10.1002/ett.3482)
 
-## 👤 Author
 
-**Dingrui Tao**
 
-## 📄 License
+## License
 
-This project is available for educational and research purposes.
+This project is available for non-profit educational and research purposes.
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - UCI Machine Learning Repository for providing the dataset
 - Stan Development Team for the probabilistic programming framework
 - Course instructors and peers for valuable feedback
 
 ---
-
-**Note**: This project was completed as part of a Bayesian statistics course project. The analysis demonstrates practical application of Bayesian methods to real-world traffic prediction problems.
